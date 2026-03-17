@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Production Flow Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root{
+      --primary:#2563eb;
+      --success:#10b981;
+      --warning:#f59e0b;
+      --danger:#ef4444;
+      --help:#8b5cf6;
+      --qc:#06b6d4;
+      --dark:#111827;
+      --light:#f8fafc;
+      --muted:#64748b;
+      --card:#ffffff;
+    }
+    body{
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--light);
+      color: #0f172a;
+      line-height: 1.35;
+      padding-bottom: 100px;
+    }
+    header{
+      background: var(--dark);
+      color:white;
+      padding:16px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      box-shadow: 0 2px 8px rgba(0,0,0,.18);
+    }
+    header h1{
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+    .header-row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .badge{
+      background: rgba(255,255,255,.14);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+    }
+    .container{ padding:16px; }
+    .tabs{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:8px;
+      margin-bottom:16px;
+    }
+    .tab{
+      padding:12px 8px;
+      border:none;
+      border-radius:12px;
+      background:#e2e8f0;
+      color:#0f172a;
+      font-weight:700;
+      font-size:13px;
+    }
+    .tab.active{
+      background: var(--primary);
+      color:white;
+    }
+    .tab-content{ display:none; }
+    .tab-content.active{ display:block; }
+
+    .alert{
+      background:#fef2f2;
+      border:1px solid #fecaca;
+      color:#991b1b;
+      border-radius:12px;
+      padding:12px;
+      margin-bottom:12px;
+      font-weight:700;
+    }
+
+    .summary-grid{
+      display:grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap:10px;
+      margin-bottom:16px;
+    }
+    .summary-card{
+      background: var(--card);
+      border-radius:14px;
+      padding:14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      border-left:4px solid #cbd5e1;
+    }
+    .summary-card h3{
+      color:var(--muted);
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+      margin-bottom:8px;
+    }
+    .summary-card .value{
+      font-size:24px;
+      font-weight:800;
+    }
+    .summary-card.success{ border-left-color: var(--success); }
+    .summary-card.warning{ border-left-color: var(--warning); }
+    .summary-card.danger{ border-left-color: var(--danger); }
+    .summary-card.help{ border-left-color: var(--help); }
+
+    .group{
+      background:var(--card);
+      border-radius:16px;
+      padding:14px;
+      margin-bottom:18px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.08);
+      position: relative;
+    }
+    .group-title{
+      font-size:18px;
+      font-weight:800;
+      margin-bottom:4px;
+    }
+    .group-flow{
+      font-size:13px;
+      color:var(--muted);
+      margin-bottom:12px;
+    }
+    .station-list{
+      display:grid;
+      gap:12px;
+    }
+    .station{
+      background:#f8fafc;
+      border-radius:14px;
+      padding:14px;
+      border-left:6px solid var(--success);
+      position:relative;
+    }
+    .station.stopped{ border-left-color: var(--danger); background:#fef2f2; }
+    .station.waiting{ border-left-color: var(--warning); background:#fffbeb; }
+    .station.help-needed{ border-left-color: var(--help); background:#f3e8ff; }
+    .station-header{
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      align-items:flex-start;
+      margin-bottom:10px;
+    }
+    .station-name{
+      font-size:18px;
+      font-weight:800;
+    }
+    .status{
+      font-size:11px;
+      font-weight:800;
+      text-transform:uppercase;
+      padding:5px 10px;
+      border-radius:999px;
+      white-space:nowrap;
+    }
+    .status.running{ background:#d1fae5; color:#065f46; }
+    .status.stopped{ background:#fecaca; color:#991b1b; }
+    .status.waiting{ background:#fde68a; color:#92400e; }
+    .status.help{ background:#ddd6fe; color:#5b21b6; }
+
+    .mini-badge{
+      position:absolute;
+      top:-8px;
+      padding:4px 8px;
+      border-radius:999px;
+      color:white;
+      font-size:10px;
+      font-weight:800;
+      text-transform:uppercase;
+    }
+    .feeder{ right:10px; background:var(--primary); }
+    .help-badge{ left:10px; background:var(--help); }
+
+    .progress-row{
+      display:flex;
+      justify-content:space-between;
+      font-size:13px;
+      margin-bottom:6px;
+    }
+    .bar{
+      height:8px;
+      background:#e2e8f0;
+      border-radius:999px;
+      overflow:hidden;
+      margin-bottom:10px;
+    }
+    .fill{
+      height:100%;
+      background:var(--success);
+    }
+    .station.stopped .fill{ background:var(--danger); }
+    .station.waiting .fill{ background:var(--warning); }
+    .station.help-needed .fill{ background:var(--help); }
+
+    .event-box{
+      margin-top:8px;
+      padding:10px;
+      border-radius:10px;
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      font-weight:700;
+      font-size:13px;
+    }
+    .event-stop{ background:rgba(239,68,68,.12); color:#b91c1c; }
+    .event-help{ background:rgba(139,92,246,.15); color:#6d28d9; }
+    .mono{ font-family: "Courier New", monospace; }
+
+    .stats{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:8px;
+      margin-top:10px;
+    }
+    .stat{
+      background:rgba(0,0,0,.03);
+      border-radius:10px;
+      text-align:center;
+      padding:8px 6px;
+    }
+    .stat small{
+      display:block;
+      color:var(--muted);
+      font-size:11px;
+      margin-bottom:2px;
+    }
+    .stat strong{ font-size:16px; }
+
+    .actions{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:8px;
+      margin-top:12px;
+    }
+    .btn{
+      border:none;
+      border-radius:10px;
+      padding:10px 8px;
+      color:white;
+      font-weight:800;
+      font-size:13px;
+    }
+    .btn.stop{ background:var(--danger); }
+    .btn.resume{ background:var(--success); }
+    .btn.unit{ background:#475569; }
+    .btn.help{ background:var(--help); }
+    .btn.qc{ background:var(--qc); }
+    .btn.secondary{ background:#94a3b8; }
+
+    .panel{
+      background:var(--card);
+      border-radius:16px;
+      padding:16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.08);
+      margin-bottom:16px;
+    }
+    .panel h2, .panel h3{
+      margin-bottom:12px;
+    }
+    .selector-grid{
+      display:grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap:10px;
+      margin-bottom:16px;
+    }
+    .selector{
+      background:white;
+      border:2px solid #e2e8f0;
+      border-radius:12px;
+      padding:14px;
+      font-weight:700;
+      text-align:center;
+    }
+    .selector.selected{
+      background:var(--primary);
+      border-color:var(--primary);
+      color:white;
+    }
+    .choice-grid{
+      display:grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap:10px;
+      margin:12px 0;
+    }
+    .choice{
+      background:white;
+      border:2px solid #e2e8f0;
+      border-radius:12px;
+      padding:14px;
+      text-align:left;
+      font-weight:700;
+    }
+    .choice.selected{
+      background:#eff6ff;
+      border-color:var(--primary);
+      color:var(--primary);
+    }
+    textarea, input, select{
+      width:100%;
+      border:2px solid #e2e8f0;
+      border-radius:10px;
+      padding:12px;
+      font-size:16px;
+      margin-top:6px;
+    }
+    .row{
+      display:flex;
+      gap:10px;
+    }
+    .row > *{ flex:1; }
+    .hint{ color:var(--muted); font-size:13px; }
+    .empty{
+      padding:30px 10px;
+      text-align:center;
+      color:var(--muted);
+    }
+
+    .list{
+      list-style:none;
+    }
+    .list li{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      padding:12px 0;
+      border-bottom:1px solid #e2e8f0;
+    }
+    .chart{
+      height:180px;
+      background:#f8fafc;
+      border-radius:12px;
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-around;
+      gap:8px;
+      padding:16px;
+      margin-top:12px;
+    }
+    .chart-col{
+      width:36px;
+      background:var(--primary);
+      border-radius:6px 6px 0 0;
+      position:relative;
+    }
+    .chart-col span{
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      font-size:11px;
+      white-space:nowrap;
+    }
+    .chart-col .top{ top:-18px; font-weight:700; }
+    .chart-col .bottom{ bottom:-20px; }
+
+    .fab-wrap{
+      position:fixed;
+      right:20px;
+      bottom:20px;
+      z-index:30;
+    }
+    .fab{
+      width:60px;
+      height:60px;
+      border-radius:999px;
+      border:none;
+      background:var(--primary);
+      color:white;
+      font-size:28px;
+      font-weight:700;
+      box-shadow:0 6px 16px rgba(37,99,235,.35);
+    }
+
+    .modal{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.55);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      z-index:40;
+    }
+    .modal.active{ display:flex; }
+    .modal-box{
+      width:100%;
+      max-width:520px;
+      max-height:90vh;
+      overflow:auto;
+      background:white;
+      border-radius:18px;
+      padding:18px;
+    }
+    .modal-box h2{ margin-bottom:4px; }
+    .modal-box p{ color:var(--muted); margin-bottom:14px; }
+
+    .danger-zone{
+      border:2px dashed var(--danger);
+    }
+
+    @media (max-width: 420px){
+      .actions{ grid-template-columns: repeat(2, 1fr); }
+      .summary-grid{ grid-template-columns: repeat(2, 1fr); }
+      .tabs{ grid-template-columns: repeat(2, 1fr); }
+      .choice-grid, .selector-grid{ grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Production Flow Tracker</h1>
+    <div class="header-row">
+      <span class="badge" id="currentShift">Day Shift</span>
+      <span class="badge" id="currentTime">--:--</span>
+      <span class="badge" id="shiftStartDisplay">Started: --:--</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('dashboard', this)">Dashboard</button>
+      <button class="tab" onclick="switchTab('operator', this)">Operator</button>
+      <button class="tab" onclick="switchTab('reports', this)">Reports</button>
+      <button class="tab" onclick="switchTab('config', this)">Config</button>
+    </div>
+
+    <section id="dashboard" class="tab-content active">
+      <div id="bottleneckAlert" class="alert" style="display:none;"></div>
+
+      <div class="summary-grid">
+        <div class="summary-card success"><h3>Overall Progress</h3><div class="value" id="overallProgress">0%</div></div>
+        <div class="summary-card"><h3>Active Stations</h3><div class="value" id="activeStations">0/0</div></div>
+        <div class="summary-card"><h3>Production Rate</h3><div class="value" id="productionRate">0/hr</div></div>
+        <div class="summary-card" id="paceCard"><h3>Shift Pace</h3><div class="value" id="shiftPace">--</div></div>
+        <div class="summary-card danger"><h3>Total Downtime</h3><div class="value" id="totalDowntime">0m</div></div>
+        <div class="summary-card help" id="qcCard"><h3>QC Issues</h3><div class="value" id="qcIssuesCount">0</div></div>
+        <div class="summary-card"><h3>Units Completed</h3><div class="value" id="totalUnits">0</div></div>
+      </div>
+
+      <div id="stationsLayout"></div>
+    </section>
+
+    <section id="operator" class="tab-content">
+      <div class="panel">
+        <h2>Operator Log</h2>
+        <div class="hint">Select a station</div>
+        <div class="selector-grid" id="operatorStationSelector"></div>
+
+        <div id="operatorActions" style="display:none;">
+          <div class="panel" style="box-shadow:none; padding:0; margin-top:8px;">
+            <h3>Current Status: <span id="currentStationStatus" class="status running">Running</span></h3>
+
+            <div id="runningForm">
+              <div class="actions">
+                <button class="btn stop" onclick="showStopForm()">⏹ Stop</button>
+                <button class="btn qc" onclick="showQCIssueForm()">⚠ QC Issue</button>
+                <button class="btn help" onclick="showHelpChoices()">🆘 Help</button>
+              </div>
+            </div>
+
+            <div id="stopForm" style="display:none;">
+              <h3 style="margin-top:12px;">Stop Reason</h3>
+              <div class="choice-grid" id="stopChoices">
+                <button class="choice" onclick="selectReason(this,'waiting_parts')">📦 Waiting on Parts</button>
+                <button class="choice" onclick="selectReason(this,'equipment_issue')">⚡ Equipment Issue</button>
+                <button class="choice" onclick="selectReason(this,'quality_hold')">✓ Quality Hold</button>
+                <button class="choice" onclick="selectReason(this,'changeover')">🔄 Changeover</button>
+                <button class="choice" onclick="selectReason(this,'other')">📝 Other</button>
+              </div>
+              <label>Notes (optional)
+                <textarea id="stopNotes" placeholder="Add details if needed..."></textarea>
+              </label>
+              <div class="row" style="margin-top:12px;">
+                <button class="btn secondary" onclick="cancelOperatorForms()">Cancel</button>
+                <button class="btn stop" onclick="confirmStop()">Log Stop</button>
+              </div>
+            </div>
+
+            <div id="helpChoiceForm" style="display:none;">
+              <h3 style="margin-top:12px;">Call for Help</h3>
+              <div class="choice-grid">
+                <button class="choice" onclick="callForHelp('supervisor')">👔 Call Supervisor</button>
+                <button class="choice" onclick="callForHelp('maintenance')">🔧 Call Maintenance</button>
+                <button class="choice" onclick="callForHelp('qa')">✓ Call QA</button>
+              </div>
+              <div class="row" style="margin-top:12px;">
+                <button class="btn secondary" onclick="cancelOperatorForms()">Back</button>
+              </div>
+            </div>
+
+            <div id="resumeForm" style="display:none;">
+              <div class="hint">Stop Duration</div>
+              <div class="value mono" id="stopDuration" style="font-size:24px; font-weight:800; margin:8px 0 12px;">00:00:00</div>
+              <div id="stopReasonDisplay" class="event-box event-stop"></div>
+              <button class="btn resume" style="width:100%; margin-top:12px;" onclick="confirmResume()">▶ Resume Production</button>
+            </div>
+
+            <div id="helpForm" style="display:none;">
+              <div class="hint">Help Requested</div>
+              <div id="helpTypeDisplay" class="event-box event-help" style="margin-top:8px;"></div>
+              <div class="hint" style="margin-top:12px;">Waiting Time</div>
+              <div class="value mono" id="helpDuration" style="font-size:24px; font-weight:800; margin-top:8px;">00:00:00</div>
+              <button class="btn resume" style="width:100%; margin-top:12px;" onclick="resolveHelp()">✓ Help Arrived / Resolved</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="noStationSelected" class="empty">Select a station above to log stops, QC issues, or request help.</div>
+      </div>
+    </section>
+
+    <section id="reports" class="tab-content">
+      <div class="panel">
+        <h2>Shift Summary <span id="reportShiftTime" class="hint"></span></h2>
+        <div class="summary-grid">
+          <div class="summary-card"><h3>Shift Target</h3><div class="value" id="shiftTarget">0</div></div>
+          <div class="summary-card success"><h3>Actual Output</h3><div class="value" id="shiftActual">0</div></div>
+          <div class="summary-card"><h3>Achievement</h3><div class="value" id="shiftAchievement">0%</div></div>
+          <div class="summary-card"><h3>Production Rate</h3><div class="value" id="reportProductionRate">0/hr</div></div>
+          <div class="summary-card danger"><h3>Lost Time</h3><div class="value" id="shiftLostTime">0m</div></div>
+          <div class="summary-card help"><h3>QC Issues</h3><div class="value" id="reportQCIssues">0</div></div>
+        </div>
+        <h3 style="margin-top:8px;">Station Progress Comparison</h3>
+        <div class="chart" id="efficiencyChart"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Top Delay Reasons</h3>
+        <ul class="list" id="delayList"></ul>
+      </div>
+
+      <div class="panel">
+        <h3>QC Issues Log</h3>
+        <ul class="list" id="issueList"></ul>
+      </div>
+
+      <div class="panel">
+        <h3>Bottleneck Analysis</h3>
+        <div id="bottleneckAnalysis" class="hint">Insufficient data for bottleneck analysis.</div>
+      </div>
+
+      <div class="panel danger-zone">
+        <h3>End Shift & Reset</h3>
+        <p class="hint" style="margin-bottom:12px;">Complete this shift and start fresh. All data will be archived.</p>
+        <button class="btn stop" style="width:100%;" onclick="showResetConfirmation()">End Current Shift</button>
+      </div>
+    </section>
+
+    <section id="config" class="tab-content">
+      <div class="panel">
+        <h2>Station Configuration</h2>
+        <div id="configStations"></div>
+        <button class="btn" style="background:var(--primary); width:100%; margin-top:12px;" onclick="addStation()">+ Add New Station</button>
+      </div>
+
+      <div class="panel">
+        <h2>Shift Settings</h2>
+        <label>Shift Duration (hours)
+          <input type="number" id="shiftDuration" min="1" max="24" />
+        </label>
+        <label style="margin-top:12px;">Target Units per Shift (total)
+          <input type="number" id="shiftTargetInput" min="1" />
+        </label>
+        <button class="btn resume" style="margin-top:12px; width:100%;" onclick="saveSettings()">Save Settings</button>
+      </div>
+
+      <div class="panel">
+        <button class="btn secondary" style="width:100%;" onclick="exportData()">Export CSV</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="fab-wrap"><button class="fab" onclick="quickLog()">+</button></div>
+
+  <div id="stopModal" class="modal">
+    <div class="modal-box">
+      <h2>Log Production Stop</h2>
+      <p>Select station and reason for the stoppage</p>
+      <label>Station
+        <select id="quickStationSelect"></select>
+      </label>
+
+      <h3 style="margin-top:12px;">Stop Reason</h3>
+      <div class="choice-grid">
+        <button class="choice" onclick="selectQuickReason(this,'waiting_parts')">📦 Waiting on Parts</button>
+        <button class="choice" onclick="selectQuickReason(this,'equipment_issue')">⚡ Equipment Issue</button>
+        <button class="choice" onclick="selectQuickReason(this,'quality_hold')">✓ Quality Hold</button>
+        <button class="choice" onclick="selectQuickReason(this,'changeover')">🔄 Changeover</button>
+        <button class="choice" onclick="selectQuickReason(this,'other')">📝 Other</button>
+      </div>
+
+      <h3>Need Help?</h3>
+      <div class="choice-grid">
+        <button class="choice" onclick="selectQuickHelp(this,'supervisor')">👔 Call Supervisor</button>
+        <button class="choice" onclick="selectQuickHelp(this,'maintenance')">🔧 Call Maintenance</button>
+        <button class="choice" onclick="selectQuickHelp(this,'qa')">✓ Call QA</button>
+      </div>
+
+      <label>Notes (optional)
+        <textarea id="quickStopNotes" placeholder="Additional details..."></textarea>
+      </label>
+
+      <div class="row" style="margin-top:12px;">
+        <button class="btn secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn stop" onclick="confirmQuickStop()">Log Stop</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="qcModal" class="modal">
+    <div class="modal-box">
+      <h2>⚠ Log QC Issue</h2>
+      <p>Record quality issue and added time</p>
+      <div class="hint">Station</div>
+      <div id="qcStationDisplay" class="event-box" style="background:#f8fafc; color:#0f172a; margin-bottom:12px;"></div>
+
+      <h3>Issue Type</h3>
+      <div class="choice-grid">
+        <button class="choice" onclick="selectQCIssue(this,'gas_leak')">🔥 Gas Leak</button>
+        <button class="choice" onclick="selectQCIssue(this,'wiring_harness')">🔌 Wiring Harness</button>
+        <button class="choice" onclick="selectQCIssue(this,'wrong_orifice')">⚙ Wrong Orifice</button>
+        <button class="choice" onclick="selectQCIssue(this,'purchased_part')">📦 Purchased Part</button>
+        <button class="choice" onclick="selectQCIssue(this,'cosmetic')">🎨 Cosmetic</button>
+        <button class="choice" onclick="selectQCIssue(this,'other')">📝 Other</button>
+      </div>
+
+      <label>Added Time (minutes)
+        <input type="number" id="qcAddedTime" value="0" min="0" />
+      </label>
+      <label style="margin-top:12px;">Notes (optional)
+        <textarea id="qcNotes" placeholder="Details about the issue..."></textarea>
+      </label>
+
+      <div class="row" style="margin-top:12px;">
+        <button class="btn secondary" onclick="closeQCModal()">Cancel</button>
+        <button class="btn qc" onclick="confirmQCIssue()">Log QC Issue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="resetModal" class="modal">
+    <div class="modal-box">
+      <h2>⚠ End Current Shift?</h2>
+      <p>This will archive all current data and reset for the next shift.</p>
+      <div class="summary-grid">
+        <div class="summary-card"><h3>Units Done</h3><div class="value" id="resetUnits">0</div></div>
+        <div class="summary-card"><h3>Progress</h3><div class="value" id="resetProgress">0%</div></div>
+        <div class="summary-card"><h3>Duration</h3><div class="value" id="resetDuration">0h</div></div>
+        <div class="summary-card"><h3>Shift Started</h3><div class="value" id="resetStartTime">--:--</div></div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn secondary" onclick="closeResetModal()">Cancel</button>
+        <button class="btn stop" onclick="confirmReset()">End Shift & Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let stations = JSON.parse(localStorage.getItem('production_stations')) || [
+      { id: 1, name: 'Receiving', target: 50, completed: 0, status: 'running', currentStop: null, stops: [], group: 'line1', isFeeder: true, helpRequest: null },
+      { id: 2, name: 'Brakes', target: 40, completed: 0, status: 'running', currentStop: null, stops: [], group: 'line1', isFeeder: false, helpRequest: null },
+      { id: 3, name: 'Assembly', target: 40, completed: 0, status: 'running', currentStop: null, stops: [], group: 'line2', isFeeder: true, helpRequest: null },
+      { id: 4, name: 'Paint', target: 35, completed: 0, status: 'running', currentStop: null, stops: [], group: 'line2', isFeeder: false, helpRequest: null },
+      { id: 5, name: 'Burner Welding', target: 35, completed: 0, status: 'running', currentStop: null, stops: [], group: 'line3', isFeeder: true, helpRequest: null },
+      { id: 6, name: 'Final Assembly', target: 40, completed: 0, status: 'running', currentStop: null, stops: [], group: 'line3', isFeeder: false, helpRequest: null },
+      { id: 7, name: 'QC', target: 50, completed: 0, status: 'running', currentStop: null, stops: [], group: 'line4', isFeeder: true, helpRequest: null },
+      { id: 8, name: 'Crating', target: 50, completed: 0, status: 'running', currentStop: null, stops: [], group: 'line4', isFeeder: false, helpRequest: null },
+      { id: 9, name: 'Shipping', target: 50, completed: 0, status: 'running', currentStop: null, stops: [], group: 'line5', isFeeder: false, helpRequest: null }
+    ];
+
+    let qcIssues = JSON.parse(localStorage.getItem('production_qc_issues')) || [];
+    let settings = JSON.parse(localStorage.getItem('production_settings')) || {
+      shiftDuration: 8,
+      shiftTarget: 100,
+      shiftStartTime: null
+    };
+
+    const reasonLabels = {
+      waiting_parts: 'Waiting on Parts',
+      equipment_issue: 'Equipment Issue',
+      quality_hold: 'Quality Hold',
+      changeover: 'Changeover',
+      other: 'Other'
+    };
+
+    const helpLabels = {
+      supervisor: 'Supervisor Needed',
+      maintenance: 'Maintenance Needed',
+      qa: 'QA Needed'
+    };
+
+    const qcIssueLabels = {
+      gas_leak: 'Gas Leak',
+      wiring_harness: 'Wiring Harness',
+      wrong_orifice: 'Wrong Orifice',
+      purchased_part: 'Purchased Part',
+      cosmetic: 'Cosmetic',
+      other: 'Other'
+    };
+
+    const groupConfig = {
+      line1: { name: 'Line 1', flow: 'Receiving → Brakes' },
+      line2: { name: 'Line 2', flow: 'Assembly → Paint' },
+      line3: { name: 'Line 3', flow: 'Burner Welding → Final Assembly' },
+      line4: { name: 'Line 4', flow: 'QC → Crating' },
+      line5: { name: 'Line 5', flow: 'Shipping' }
+    };
+
+    let selectedOperatorStation = null;
+    let selectedReason = null;
+    let selectedQuickReason = null;
+    let selectedQuickHelp = null;
+    let selectedQCIssue = null;
+    let stopTimerInterval = null;
+    let helpTimerInterval = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!settings.shiftStartTime) {
+        settings.shiftStartTime = new Date().toISOString();
+        localStorage.setItem('production_settings', JSON.stringify(settings));
+      }
+      updateTime();
+      setInterval(updateTime, 1000);
+      updateShiftStartDisplay();
+      renderAll();
+      setInterval(() => {
+        if (document.getElementById('dashboard').classList.contains('active')) {
+          renderStations();
+          updateDashboard();
+        }
+        if (selectedOperatorStation && document.getElementById('operator').classList.contains('active')) {
+          const station = stations.find(s => s.id === selectedOperatorStation);
+          if (station && ((station.currentStop) || (station.helpRequest && !station.helpRequest.resolved))) {
+            updateOperatorView();
+          }
+        }
+      }, 5000);
+    });
+
+    function saveData() {
+      localStorage.setItem('production_stations', JSON.stringify(stations));
+      localStorage.setItem('production_qc_issues', JSON.stringify(qcIssues));
+    }
+
+    function updateTime() {
+      const now = new Date();
+      document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+      const hour = now.getHours();
+      let shift = 'Night Shift';
+      if (hour >= 6 && hour < 14) shift = 'Day Shift';
+      else if (hour >= 14 && hour < 22) shift = 'Evening Shift';
+      document.getElementById('currentShift').textContent = shift;
+    }
+
+    function updateShiftStartDisplay() {
+      const start = new Date(settings.shiftStartTime);
+      document.getElementById('shiftStartDisplay').textContent = 'Started: ' + start.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+    }
+
+    function switchTab(id, el) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      if (id === 'reports') generateReports();
+      if (id === 'config') renderConfig();
+    }
+
+    function renderAll() {
+      renderStations();
+      renderOperatorSelector();
+      renderConfig();
+      loadSettings();
+      updateDashboard();
+    }
+
+    function calculateLostTime(station) {
+      let total = 0;
+      station.stops.forEach(stop => {
+        const start = new Date(stop.startTime);
+        const end = stop.endTime ? new Date(stop.endTime) : new Date();
+        total += (end - start) / 60000;
+      });
+      if ((station.status === 'stopped' || station.status === 'waiting') && station.helpRequest && !station.helpRequest.resolved) {
+        total += (new Date() - new Date(station.helpRequest.startTime)) / 60000;
+      }
+      return Math.round(total);
+    }
+
+    function getProgress(station) {
+      if (!station.target) return 0;
+      return Math.min(100, (station.completed / station.target) * 100);
+    }
+
+    function getHelpDurationText(req) {
+      const duration = Math.floor((new Date() - new Date(req.startTime)) / 1000);
+      const mins = Math.floor(duration / 60);
+      const secs = duration % 60;
+      return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    }
+
+    function getStopDurationText(stop) {
+      const duration = Math.floor((new Date() - new Date(stop.startTime)) / 1000);
+      const mins = Math.floor(duration / 60);
+      const secs = duration % 60;
+      return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    }
+
+    function renderStations() {
+      const wrap = document.getElementById('stationsLayout');
+      wrap.innerHTML = '';
+
+      const groups = {};
+      stations.forEach(s => {
+        if (!groups[s.group]) groups[s.group] = [];
+        groups[s.group].push(s);
+      });
+
+      Object.keys(groups).forEach(groupId => {
+        groups[groupId].sort((a, b) => (b.isFeeder ? 1 : 0) - (a.isFeeder ? 1 : 0));
+      });
+
+      Object.keys(groups).forEach(groupId => {
+        const group = document.createElement('div');
+        group.className = 'group';
+        const cfg = groupConfig[groupId] || {name: groupId, flow: ''};
+
+        let stationsHtml = '<div class="station-list">';
+        groups[groupId].forEach(station => {
+          const progress = getProgress(station);
+          const helpActive = station.helpRequest && !station.helpRequest.resolved;
+          const cls = helpActive ? 'help-needed' : station.status;
+          const statusText = helpActive ? 'help' : station.status;
+
+          let stopBox = '';
+          if (station.currentStop) {
+            stopBox = `<div class="event-box event-stop"><span>${reasonLabels[station.currentStop.reason]}</span><span class="mono">${getStopDurationText(station.currentStop)}</span></div>`;
+          }
+
+          let helpBox = '';
+          if (helpActive) {
+            helpBox = `<div class="event-box event-help"><span>⚠ ${helpLabels[station.helpRequest.type]}</span><span class="mono">${getHelpDurationText(station.helpRequest)}</span></div>`;
+          }
+
+          const mainBtn = station.status === 'running'
+            ? `<button class="btn stop" onclick="stopStation(${station.id})">⏹</button>`
+            : `<button class="btn resume" onclick="resumeStation(${station.id})">▶</button>`;
+
+          const helpBtn = helpActive
+            ? `<button class="btn help" onclick="resolveHelpFromCard(${station.id})">✓</button>`
+            : `<button class="btn help" onclick="showQuickHelpForStation(${station.id})">🆘</button>`;
+
+          const qcBtn = station.name === 'QC'
+            ? `<button class="btn qc" onclick="showQCIssueFormForStation(${station.id})">⚠</button>`
+            : `<button class="btn qc" onclick="showQCIssueFormForStation(${station.id})">⚠</button>`;
+
+          stationsHtml += `
+            <div class="station ${cls}">
+              ${station.isFeeder ? '<span class="mini-badge feeder">Feeder</span>' : ''}
+              ${helpActive ? '<span class="mini-badge help-badge">Help</span>' : ''}
+              <div class="station-header">
+                <div class="station-name">${station.name}</div>
+                <div class="status ${statusText}">${statusText}</div>
+              </div>
+              <div class="progress-row"><span>${station.completed}/${station.target || 0}</span><span>${Math.round(progress)}%</span></div>
+              <div class="bar"><div class="fill" style="width:${progress}%"></div></div>
+              ${stopBox}
+              ${helpBox}
+              <div class="stats">
+                <div class="stat"><small>Stops</small><strong>${station.stops.length}</strong></div>
+                <div class="stat"><small>Lost</small><strong>${calculateLostTime(station)}m</strong></div>
+                <div class="stat"><small>Progress</small><strong>${Math.round(progress)}%</strong></div>
+              </div>
+              <div class="actions">
+                ${mainBtn}
+                <button class="btn unit" onclick="addUnits(${station.id})">+1</button>
+                ${helpBtn}
+                ${qcBtn}
+              </div>
+            </div>
+          `;
+        });
+        stationsHtml += '</div>';
+
+        group.innerHTML = `
+          <div class="group-title">${cfg.name}</div>
+          <div class="group-flow">${cfg.flow}</div>
+          ${stationsHtml}
+        `;
+        wrap.appendChild(group);
+      });
+    }
+
+    function renderOperatorSelector() {
+      const selector = document.getElementById('operatorStationSelector');
+      const quickSelect = document.getElementById('quickStationSelect');
+      selector.innerHTML = '';
+      quickSelect.innerHTML = '';
+
+      stations.forEach(station => {
+        const div = document.createElement('button');
+        div.className = 'selector';
+        let label = station.name;
+        if (station.helpRequest && !station.helpRequest.resolved) label += ' 🆘';
+        else if (station.currentStop) label += ' ⏹';
+        div.textContent = label;
+        div.onclick = () => selectOperatorStation(station.id, div);
+        selector.appendChild(div);
+
+        const opt = document.createElement('option');
+        opt.value = station.id;
+        opt.textContent = station.name;
+        quickSelect.appendChild(opt);
+      });
+    }
+
+    function renderConfig() {
+      const wrap = document.getElementById('configStations');
+      wrap.innerHTML = '';
+      stations.forEach((station, index) => {
+        const block = document.createElement('div');
+        block.className = 'panel';
+        block.style.padding = '12px';
+        block.style.marginBottom = '12px';
+        block.innerHTML = `
+          <label>Station Name
+            <input value="${station.name}" onchange="updateStationName(${index}, this.value)">
+          </label>
+          <label style="margin-top:10px;">Target
+            <input type="number" value="${station.target}" onchange="updateStationTarget(${index}, this.value)">
+          </label>
+          <label style="margin-top:10px;">Group
+            <select onchange="updateStationGroup(${index}, this.value)">
+              ${Object.keys(groupConfig).map(g => `<option value="${g}" ${station.group === g ? 'selected' : ''}>${groupConfig[g].name}</option>`).join('')}
+            </select>
+          </label>
+          <div class="row" style="margin-top:10px;">
+            <button class="btn secondary" onclick="toggleFeeder(${index}, ${!station.isFeeder})">${station.isFeeder ? 'Unset Feeder' : 'Set Feeder'}</button>
+            <button class="btn stop" onclick="removeStation(${index})">Delete</button>
+          </div>
+        `;
+        wrap.appendChild(block);
+      });
+    }
+
+    function loadSettings() {
+      document.getElementById('shiftDuration').value = settings.shiftDuration;
+      document.getElementById('shiftTargetInput').value = settings.shiftTarget;
+    }
+
+    function updateDashboard() {
+      const totalTarget = stations.reduce((s, x) => s + (x.target || 0), 0);
+      const totalCompleted = stations.reduce((s, x) => s + x.completed, 0);
+      const progress = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
+      const active = stations.filter(s => s.status === 'running').length;
+      const downtime = stations.reduce((s, x) => s + calculateLostTime(x), 0);
+
+      let rate = 0;
+      if (settings.shiftStartTime) {
+        const hoursElapsed = (new Date() - new Date(settings.shiftStartTime)) / 3600000;
+        if (hoursElapsed > 0) rate = Math.round(totalCompleted / hoursElapsed);
+      }
+
+      let paceText = '--';
+      const paceCard = document.getElementById('paceCard');
+      paceCard.className = 'summary-card';
+      if (settings.shiftStartTime && settings.shiftTarget > 0) {
+        const hoursElapsed = (new Date() - new Date(settings.shiftStartTime)) / 3600000;
+        const expectedProgress = Math.min(100, (hoursElapsed / (settings.shiftDuration || 8)) * 100);
+        const actualProgress = Math.min(100, (totalCompleted / settings.shiftTarget) * 100);
+        const diff = actualProgress - expectedProgress;
+        if (diff > 10) {
+          paceText = '🟢 AHEAD';
+          paceCard.classList.add('success');
+        } else if (diff < -10) {
+          paceText = '🔴 BEHIND';
+          paceCard.classList.add('danger');
+        } else {
+          paceText = '🟡 ON TRACK';
+          paceCard.classList.add('warning');
+        }
+      }
+
+      const qcCount = qcIssues.length;
+      const qcCard = document.getElementById('qcCard');
+      qcCard.className = 'summary-card help';
+      if (qcCount === 0) qcCard.classList.add('success');
+      else if (qcCount <= 3) qcCard.classList.add('warning');
+      else qcCard.classList.add('danger');
+
+      document.getElementById('overallProgress').textContent = progress + '%';
+      document.getElementById('activeStations').textContent = `${active}/${stations.length}`;
+      document.getElementById('productionRate').textContent = `${rate}/hr`;
+      document.getElementById('shiftPace').textContent = paceText;
+      document.getElementById('totalDowntime').textContent = downtime + 'm';
+      document.getElementById('qcIssuesCount').textContent = qcCount;
+      document.getElementById('totalUnits').textContent = totalCompleted;
+
+      const bottleneck = stations.reduce((max, s) => calculateLostTime(s) > calculateLostTime(max) ? s : max, stations[0]);
+      const alert = document.getElementById('bottleneckAlert');
+      if (bottleneck && calculateLostTime(bottleneck) > 0) {
+        alert.style.display = 'block';
+        alert.textContent = `⚠ Bottleneck: ${bottleneck.name} (${calculateLostTime(bottleneck)}m lost)`;
+      } else {
+        alert.style.display = 'none';
+      }
+    }
+
+    function selectOperatorStation(id, btn) {
+      selectedOperatorStation = id;
+      document.querySelectorAll('#operatorStationSelector .selector').forEach(el => el.classList.remove('selected'));
+      btn.classList.add('selected');
+      document.getElementById('noStationSelected').style.display = 'none';
+      document.getElementById('operatorActions').style.display = 'block';
+      cancelOperatorForms();
+      updateOperatorView();
+    }
+
+    function cancelOperatorForms() {
+      document.getElementById('runningForm').style.display = 'none';
+      document.getElementById('stopForm').style.display = 'none';
+      document.getElementById('helpChoiceForm').style.display = 'none';
+      document.getElementById('resumeForm').style.display = 'none';
+      document.getElementById('helpForm').style.display = 'none';
+    }
+
+    function updateOperatorView() {
+      const station = stations.find(s => s.id === selectedOperatorStation);
+      if (!station) return;
+
+      const statusEl = document.getElementById('currentStationStatus');
+      const helpActive = station.helpRequest && !station.helpRequest.resolved;
+      const statusText = helpActive ? 'help' : station.status;
+      statusEl.className = 'status ' + statusText;
+      statusEl.textContent = statusText;
+
+      cancelOperatorForms();
+
+      if (helpActive) {
+        document.getElementById('helpForm').style.display = 'block';
+        document.getElementById('helpTypeDisplay').innerHTML = `<span>${helpLabels[station.helpRequest.type]}</span>`;
+        if (helpTimerInterval) clearInterval(helpTimerInterval);
+        helpTimerInterval = setInterval(() => {
+          const d = Math.floor((new Date() - new Date(station.helpRequest.startTime)) / 1000);
+          const h = Math.floor(d / 3600), m = Math.floor((d % 3600) / 60), s = d % 60;
+          document.getElementById('helpDuration').textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }, 1000);
+      } else if (station.currentStop) {
+        document.getElementById('resumeForm').style.display = 'block';
+        document.getElementById('stopReasonDisplay').innerHTML = `<span>${reasonLabels[station.currentStop.reason]}</span>`;
+        if (stopTimerInterval) clearInterval(stopTimerInterval);
+        stopTimerInterval = setInterval(() => {
+          const d = Math.floor((new Date() - new Date(station.currentStop.startTime)) / 1000);
+          const h = Math.floor(d / 3600), m = Math.floor((d % 3600) / 60), s = d % 60;
+          document.getElementById('stopDuration').textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }, 1000);
+      } else {
+        document.getElementById('runningForm').style.display = 'block';
+      }
+    }
+
+    function showStopForm() {
+      document.getElementById('runningForm').style.display = 'none';
+      document.getElementById('stopForm').style.display = 'block';
+    }
+
+    function showHelpChoices() {
+      document.getElementById('runningForm').style.display = 'none';
+      document.getElementById('helpChoiceForm').style.display = 'block';
+    }
+
+    function selectReason(btn, reason) {
+      document.querySelectorAll('#stopChoices .choice').forEach(c => c.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedReason = reason;
+    }
+
+    function confirmStop() {
+      if (!selectedReason) {
+        alert('Please select a stop reason');
+        return;
+      }
+      const station = stations.find(s => s.id === selectedOperatorStation);
+      station.status = selectedReason === 'waiting_parts' ? 'waiting' : 'stopped';
+      station.currentStop = {
+        startTime: new Date().toISOString(),
+        reason: selectedReason,
+        notes: document.getElementById('stopNotes').value || ''
+      };
+      selectedReason = null;
+      document.getElementById('stopNotes').value = '';
+      saveData();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+      updateOperatorView();
+    }
+
+    function confirmResume() {
+      const station = stations.find(s => s.id === selectedOperatorStation);
+      if (station.currentStop) {
+        station.currentStop.endTime = new Date().toISOString();
+        station.stops.push(station.currentStop);
+        station.currentStop = null;
+      }
+      station.status = 'running';
+      if (stopTimerInterval) clearInterval(stopTimerInterval);
+      saveData();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+      updateOperatorView();
+    }
+
+    function callForHelp(type) {
+      const station = stations.find(s => s.id === selectedOperatorStation);
+      station.helpRequest = {
+        type,
+        startTime: new Date().toISOString(),
+        resolved: false
+      };
+      saveData();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+      updateOperatorView();
+    }
+
+    function resolveHelp() {
+      const station = stations.find(s => s.id === selectedOperatorStation);
+      if (station.helpRequest) {
+        station.helpRequest.resolved = true;
+        station.helpRequest.resolvedTime = new Date().toISOString();
+      }
+      if (helpTimerInterval) clearInterval(helpTimerInterval);
+      saveData();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+      updateOperatorView();
+    }
+
+    function resolveHelpFromCard(id) {
+      const station = stations.find(s => s.id === id);
+      if (station.helpRequest) {
+        station.helpRequest.resolved = true;
+        station.helpRequest.resolvedTime = new Date().toISOString();
+      }
+      saveData();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+    }
+
+    function quickLog() {
+      document.getElementById('stopModal').classList.add('active');
+    }
+
+    function showQuickHelpForStation(id) {
+      document.getElementById('quickStationSelect').value = id;
+      document.getElementById('stopModal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('stopModal').classList.remove('active');
+      selectedQuickReason = null;
+      selectedQuickHelp = null;
+      document.querySelectorAll('#stopModal .choice').forEach(c => c.classList.remove('selected'));
+      document.getElementById('quickStopNotes').value = '';
+    }
+
+    function selectQuickReason(btn, reason) {
+      document.querySelectorAll('#stopModal .choice').forEach(c => {
+        if (c.textContent.includes('Waiting') || c.textContent.includes('Equipment') || c.textContent.includes('Quality') || c.textContent.includes('Changeover') || c.textContent.includes('Other')) c.classList.remove('selected');
+      });
+      btn.classList.add('selected');
+      selectedQuickReason = reason;
+    }
+
+    function selectQuickHelp(btn, type) {
+      document.querySelectorAll('#stopModal .choice').forEach(c => {
+        if (c.textContent.includes('Call')) c.classList.remove('selected');
+      });
+      btn.classList.add('selected');
+      selectedQuickHelp = type;
+    }
+
+    function confirmQuickStop() {
+      if (!selectedQuickReason && !selectedQuickHelp) {
+        alert('Please select a stop reason or help request');
+        return;
+      }
+      const id = parseInt(document.getElementById('quickStationSelect').value);
+      const station = stations.find(s => s.id === id);
+
+      if (selectedQuickReason) {
+        station.status = selectedQuickReason === 'waiting_parts' ? 'waiting' : 'stopped';
+        station.currentStop = {
+          startTime: new Date().toISOString(),
+          reason: selectedQuickReason,
+          notes: document.getElementById('quickStopNotes').value || ''
+        };
+      }
+      if (selectedQuickHelp) {
+        station.helpRequest = {
+          type: selectedQuickHelp,
+          startTime: new Date().toISOString(),
+          resolved: false
+        };
+      }
+      saveData();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+      closeModal();
+      if (selectedOperatorStation === id) updateOperatorView();
+    }
+
+    function stopStation(id) {
+      document.getElementById('quickStationSelect').value = id;
+      document.getElementById('stopModal').classList.add('active');
+    }
+
+    function resumeStation(id) {
+      const station = stations.find(s => s.id === id);
+      if (station.currentStop) {
+        station.currentStop.endTime = new Date().toISOString();
+        station.stops.push(station.currentStop);
+        station.currentStop = null;
+      }
+      station.status = 'running';
+      saveData();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+    }
+
+    function addUnits(id) {
+      const station = stations.find(s => s.id === id);
+      station.completed += 1;
+      saveData();
+      renderStations();
+      updateDashboard();
+    }
+
+    function showQCIssueForm() {
+      const station = stations.find(s => s.id === selectedOperatorStation);
+      if (!station) return;
+      document.getElementById('qcStationDisplay').textContent = station.name;
+      document.getElementById('qcModal').classList.add('active');
+    }
+
+    function showQCIssueFormForStation(id) {
+      const station = stations.find(s => s.id === id);
+      selectedOperatorStation = id;
+      document.getElementById('qcStationDisplay').textContent = station.name;
+      document.getElementById('qcModal').classList.add('active');
+    }
+
+    function selectQCIssue(btn, issue) {
+      document.querySelectorAll('#qcModal .choice').forEach(c => c.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedQCIssue = issue;
+    }
+
+    function confirmQCIssue() {
+      if (!selectedQCIssue) {
+        alert('Please select an issue type');
+        return;
+      }
+      const station = stations.find(s => s.id === selectedOperatorStation);
+      const addedTime = parseInt(document.getElementById('qcAddedTime').value) || 0;
+      qcIssues.push({
+        id: Date.now(),
+        stationId: station.id,
+        stationName: station.name,
+        type: selectedQCIssue,
+        addedTime,
+        notes: document.getElementById('qcNotes').value || '',
+        timestamp: new Date().toISOString()
+      });
+      if (addedTime > 0) {
+        station.stops.push({
+          startTime: new Date(Date.now() - addedTime * 60000).toISOString(),
+          endTime: new Date().toISOString(),
+          reason: 'quality_hold',
+          notes: `QC Issue: ${qcIssueLabels[selectedQCIssue]}`
+        });
+      }
+      selectedQCIssue = null;
+      saveData();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+      closeQCModal();
+      generateReports();
+    }
+
+    function closeQCModal() {
+      document.getElementById('qcModal').classList.remove('active');
+      document.querySelectorAll('#qcModal .choice').forEach(c => c.classList.remove('selected'));
+      document.getElementById('qcAddedTime').value = 0;
+      document.getElementById('qcNotes').value = '';
+      selectedQCIssue = null;
+    }
+
+    function generateReports() {
+      const totalCompleted = stations.reduce((s, x) => s + x.completed, 0);
+      const totalTarget = settings.shiftTarget || 1;
+      const achievement = Math.round((totalCompleted / totalTarget) * 100);
+      const totalLost = stations.reduce((s, x) => s + calculateLostTime(x), 0);
+
+      let rate = 0;
+      if (settings.shiftStartTime) {
+        const hoursElapsed = (new Date() - new Date(settings.shiftStartTime)) / 3600000;
+        if (hoursElapsed > 0) rate = Math.round(totalCompleted / hoursElapsed);
+        const start = new Date(settings.shiftStartTime);
+        const now = new Date();
+        const hrs = Math.floor((now - start) / 3600000);
+        const mins = Math.floor(((now - start) % 3600000) / 60000);
+        document.getElementById('reportShiftTime').textContent = `(Started ${start.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'})} • ${hrs}h ${mins}m elapsed)`;
+      }
+
+      document.getElementById('shiftTarget').textContent = settings.shiftTarget;
+      document.getElementById('shiftActual').textContent = totalCompleted;
+      document.getElementById('shiftAchievement').textContent = achievement + '%';
+      document.getElementById('reportProductionRate').textContent = rate + '/hr';
+      document.getElementById('shiftLostTime').textContent = totalLost + 'm';
+      document.getElementById('reportQCIssues').textContent = qcIssues.length;
+
+      const chart = document.getElementById('efficiencyChart');
+      chart.innerHTML = '';
+      const max = Math.max(...stations.map(s => getProgress(s)), 1);
+      stations.forEach(station => {
+        const p = getProgress(station);
+        const h = max > 0 ? (p / max) * 100 : 0;
+        const col = document.createElement('div');
+        col.className = 'chart-col';
+        col.style.height = h + '%';
+        col.innerHTML = `<span class="top">${Math.round(p)}%</span><span class="bottom">${station.name.slice(0,6)}</span>`;
+        chart.appendChild(col);
+      });
+
+      const reasonCounts = {};
+      stations.forEach(station => {
+        station.stops.forEach(stop => {
+          reasonCounts[stop.reason] = (reasonCounts[stop.reason] || 0) + 1;
+        });
+        if (station.currentStop) {
+          reasonCounts[station.currentStop.reason] = (reasonCounts[station.currentStop.reason] || 0) + 1;
+        }
+      });
+
+      const sorted = Object.entries(reasonCounts).sort((a,b) => b[1] - a[1]).slice(0,5);
+      const delayList = document.getElementById('delayList');
+      delayList.innerHTML = '';
+      if (!sorted.length) {
+        delayList.innerHTML = '<li><span class="hint">No stops recorded yet.</span></li>';
+      } else {
+        const maxCount = sorted[0][1];
+        sorted.forEach(([reason, count]) => {
+          const li = document.createElement('li');
+          li.innerHTML = `<div><strong>${reasonLabels[reason]}</strong><div class="hint">${count} occurrence${count !== 1 ? 's' : ''}</div></div><div style="display:flex; align-items:center; gap:8px;"><div class="delay-bar"><div class="delay-bar-fill" style="width:${(count/maxCount)*100}%"></div></div><strong>${count}</strong></div>`;
+          delayList.appendChild(li);
+        });
+      }
+
+      const issueList = document.getElementById('issueList');
+      issueList.innerHTML = '';
+      if (!qcIssues.length) {
+        issueList.innerHTML = '<li><span class="hint">No QC issues recorded.</span></li>';
+      } else {
+        qcIssues.slice().reverse().forEach(issue => {
+          const li = document.createElement('li');
+          li.innerHTML = `<div><strong>${qcIssueLabels[issue.type]} — ${issue.stationName}</strong><div class="hint">${issue.addedTime}m added • ${new Date(issue.timestamp).toLocaleTimeString()}</div>${issue.notes ? `<div class="hint">${issue.notes}</div>` : ''}</div>`;
+          issueList.appendChild(li);
+        });
+      }
+
+      const bottleneck = stations.reduce((max, s) => calculateLostTime(s) > calculateLostTime(max) ? s : max, stations[0]);
+      const analysis = document.getElementById('bottleneckAnalysis');
+      if (bottleneck && calculateLostTime(bottleneck) > 0) {
+        const stops = bottleneck.stops.length + (bottleneck.currentStop ? 1 : 0);
+        analysis.innerHTML = `<strong>⚠ Primary Bottleneck: ${bottleneck.name}</strong><br><span class="hint">${calculateLostTime(bottleneck)} minutes lost time (${stops} stop${stops !== 1 ? 's' : ''}). Current progress ${Math.round(getProgress(bottleneck))}%.</span>`;
+      } else {
+        analysis.textContent = 'No significant delays recorded yet.';
+      }
+    }
+
+    function showResetConfirmation() {
+      const totalCompleted = stations.reduce((s, x) => s + x.completed, 0);
+      const totalTarget = stations.reduce((s, x) => s + (x.target || 0), 0);
+      const progress = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
+      const hours = settings.shiftStartTime ? Math.floor((new Date() - new Date(settings.shiftStartTime)) / 3600000) : 0;
+      document.getElementById('resetUnits').textContent = totalCompleted;
+      document.getElementById('resetProgress').textContent = progress + '%';
+      document.getElementById('resetDuration').textContent = hours + 'h';
+      document.getElementById('resetStartTime').textContent = new Date(settings.shiftStartTime).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+      document.getElementById('resetModal').classList.add('active');
+    }
+
+    function closeResetModal() {
+      document.getElementById('resetModal').classList.remove('active');
+    }
+
+    function confirmReset() {
+      const archive = {
+        date: new Date().toISOString(),
+        shiftStart: settings.shiftStartTime,
+        shiftEnd: new Date().toISOString(),
+        stations: JSON.parse(JSON.stringify(stations)),
+        qcIssues: JSON.parse(JSON.stringify(qcIssues)),
+        settings: {...settings}
+      };
+      const archives = JSON.parse(localStorage.getItem('production_archive') || '[]');
+      archives.push(archive);
+      localStorage.setItem('production_archive', JSON.stringify(archives));
+
+      stations.forEach(s => {
+        s.completed = 0;
+        s.status = 'running';
+        s.currentStop = null;
+        s.stops = [];
+        s.helpRequest = null;
+      });
+      qcIssues = [];
+      settings.shiftStartTime = new Date().toISOString();
+      localStorage.setItem('production_settings', JSON.stringify(settings));
+      saveData();
+      renderAll();
+      updateShiftStartDisplay();
+      closeResetModal();
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector('.tab').classList.add('active');
+      document.getElementById('dashboard').classList.add('active');
+    }
+
+    function exportData() {
+      let csv = 'Station,Group,Is Feeder,Target,Completed,Progress%,Status,Stops,Lost Time (min),Current Stop Reason,Help Status\n';
+      stations.forEach(s => {
+        const progress = Math.round(getProgress(s));
+        const lost = calculateLostTime(s);
+        const reason = s.currentStop ? reasonLabels[s.currentStop.reason] : '';
+        const help = s.helpRequest && !s.helpRequest.resolved ? helpLabels[s.helpRequest.type] : '';
+        csv += `"${s.name}","${s.group}",${s.isFeeder},${s.target || 0},${s.completed},${progress},${s.status},${s.stops.length},${lost},"${reason}","${help}"\n`;
+      });
+      csv += '\nQC Issues\nStation,Issue Type,Added Time (min),Notes,Timestamp\n';
+      qcIssues.forEach(i => {
+        csv += `"${i.stationName}","${qcIssueLabels[i.type]}",${i.addedTime},"${i.notes || ''}","${i.timestamp}"\n`;
+      });
+      csv += '\nStop Details\nStation,Start Time,End Time,Duration (min),Reason,Notes\n';
+      stations.forEach(s => {
+        s.stops.forEach(stop => {
+          const duration = Math.round((new Date(stop.endTime) - new Date(stop.startTime)) / 60000);
+          csv += `"${s.name}","${stop.startTime}","${stop.endTime}",${duration},"${reasonLabels[stop.reason]}","${stop.notes || ''}"\n`;
+        });
+      });
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `production-data-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+    }
+
+    function updateStationName(index, name) {
+      stations[index].name = name;
+      saveData();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+    }
+
+    function updateStationTarget(index, target) {
+      stations[index].target = parseInt(target) || 0;
+      saveData();
+      renderStations();
+      updateDashboard();
+    }
+
+    function updateStationGroup(index, group) {
+      stations[index].group = group;
+      saveData();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+    }
+
+    function toggleFeeder(index, nextVal) {
+      stations[index].isFeeder = nextVal;
+      saveData();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+      renderConfig();
+    }
+
+    function removeStation(index) {
+      if (stations.length <= 1) {
+        alert('Must have at least one station');
+        return;
+      }
+      const removedId = stations[index].id;
+      if (!confirm('Delete this station?')) return;
+      stations.splice(index, 1);
+      if (selectedOperatorStation === removedId) {
+        selectedOperatorStation = null;
+        document.getElementById('operatorActions').style.display = 'none';
+        document.getElementById('noStationSelected').style.display = 'block';
+      }
+      saveData();
+      renderConfig();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+    }
+
+    function addStation() {
+      const newId = Math.max(...stations.map(s => s.id), 0) + 1;
+      stations.push({
+        id: newId,
+        name: `Station ${newId}`,
+        target: 25,
+        completed: 0,
+        status: 'running',
+        currentStop: null,
+        stops: [],
+        group: 'line5',
+        isFeeder: false,
+        helpRequest: null
+      });
+      saveData();
+      renderConfig();
+      renderStations();
+      renderOperatorSelector();
+      updateDashboard();
+    }
+
+    function saveSettings() {
+      settings.shiftDuration = parseInt(document.getElementById('shiftDuration').value) || 8;
+      settings.shiftTarget = parseInt(document.getElementById('shiftTargetInput').value) || 100;
+      localStorage.setItem('production_settings', JSON.stringify(settings));
+      updateDashboard();
+      if (document.getElementById('reports').classList.contains('active')) generateReports();
+    }
+  </script>
+</body>
+</html>
